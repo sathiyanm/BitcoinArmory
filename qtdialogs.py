@@ -13,10 +13,16 @@ import shutil
 import socket
 import sys
 import time
+import json 
+import re
+import hashlib 
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
+from PyQt4 import QtGui
+from PyQt4.QtGui import QApplication, QCursor
+
 
 from armoryengine.ALL import *
 from armorycolors import Colors, htmlColor
@@ -1520,6 +1526,205 @@ class DlgChangeLabels(ArmoryDialog):
       super(DlgChangeLabels, self).accept(*args)
 
 
+#===============================================================================
+ # PUBLISH ADDRESS
+#===============================================================================
+class DlgLogin(ArmoryDialog):
+   def __init__(self, parent=None, main=None, walletAddr=None):
+      super(DlgLogin, self).__init__(parent, main)  
+      self.walletAddress = walletAddr
+            
+      
+      self.userName = QLineEdit()
+      self.userName.setMaxLength(70)
+      self.userName.setFixedWidth(280)
+      
+      lblUserName = QLabel("Email:")
+      lblUserName.setBuddy(self.userName)
+
+      self.passWord = QLineEdit()
+      self.passWord.setMaxLength(32) 
+      self.passWord.setFixedWidth(280)
+      
+      #=========================================================================
+      # TODO Hide password mask
+      #=========================================================================
+      self.passWord.setEchoMode ( QLineEdit.Password )   
+        
+      lblPassWord = QLabel("Password:")
+      lblPassWord.setBuddy(self.passWord)  
+      
+      lblPublishAddrMsg = QLabel(\
+       'Publishing your bitcoin address will enable discovery of bitcoin'
+       '<br></br>address using your email address.'
+       '<br></br>If you do not have access, please contact your administrator.'
+       '<br></br><br></br><br></br>Enter your credentials to publish\n')       
+      
+      lblPublishAddrMsg.setWordWrap(True)
+      buttonBox = QDialogButtonBox()
+      cancelBtn = buttonBox.addButton("Cancel",QDialogButtonBox.RejectRole)
+      loginBtn = buttonBox.addButton("Login",QDialogButtonBox.ActionRole)   
+       
+      self.connect(cancelBtn, SIGNAL('clicked()'), self.close)
+      self.connect(loginBtn, SIGNAL('clicked()'), self.execPublishAddress)        
+
+      layout = QGridLayout()
+      layout.addWidget(lblPublishAddrMsg, 1, 0, 1, 2)
+
+      layout.addWidget(lblUserName, 2, 0, 1, 1)
+      layout.addWidget(self.userName, 2, 1, 1, 1)
+      
+      layout.addWidget(lblPassWord, 3, 0, 1, 1)
+      layout.addWidget(self.passWord, 3, 1, 2, 1)
+      
+      layout.addWidget(buttonBox, 6, 0, 1, 2)
+      self.setLayout(layout)
+
+      self.setWindowTitle('Login')
+     
+   def execPublishAddress(self):  
+      
+      import re 
+       
+      userName = str(self.userName.text())
+      password = str(self.passWord.text())             
+      
+      if not userName:       
+       QMessageBox.warning(self, 'Login Error', \
+        ' User Name is required', QMessageBox.Ok)
+       return  
+     
+      elif not password:
+       QMessageBox.warning(self, 'Login Error', \
+        'Password is required', QMessageBox.Ok)
+       return       
+   
+      elif not re.match(r"[^@]+@[^@]+\.[^@]+", userName):        
+       QMessageBox.warning(self, 'Invalid Email Address', \
+        ' Please enter a valid email address', QMessageBox.Ok)
+       return      
+   
+      else:   
+        restServiceInit = ProvRestServiceClient()
+        
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        success, accessToken, message = restServiceInit.authenticateUser(userName, password)
+        QApplication.restoreOverrideCursor()
+        
+        if not success:
+          QMessageBox.warning(self, 'Login Failed', \
+          'The email or password you entered is incorrect', QMessageBox.Ok)
+        else:          
+          QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))           
+          pmtaSuccessStatus, pmtaErrorMessage = restServiceInit.postPMTARecord(accessToken, userName, self.walletAddress)
+          QApplication.restoreOverrideCursor()          
+          if not pmtaSuccessStatus:
+           QMessageBox.information(self, 'Failed', \
+           pmtaErrorMessage, QMessageBox.Ok)
+          else:
+           QMessageBox.information(self, 'Success', \
+           'PMTA Record has been successfully created', QMessageBox.Ok)           
+           super(DlgLogin, self).accept() 
+
+####################################################################################################################
+class PMTAUtil: 
+    
+    def convertEmailToPMTAFormat(self, email):
+     pmtaFormattedString = None
+     if re.match(r"[^@]+@[^@]+\.[^@]+", email):
+       userid, domain = email.split('@')
+       pmtaFormattedString = hashlib.sha224(userid).hexdigest()+"._pmta."+domain        
+     return pmtaFormattedString
+	  
+    def createPMTARecord(self, email, bitCoinAddress):
+	  return json.dumps({
+       "domain" : str(self.convertEmailToPMTAFormat(email)), 
+       "rrtype": "65337", 
+       "rrdata" : "2 1 0 0 "+bitCoinAddress    
+    }) 
+
+####################################################################################################################
+class ProvRestServiceClient(DlgLogin):
+    
+    def __init__(self, parent=None, main=None):
+      super(ProvRestServiceClient, self).__init__(parent, main)      
+      self.apiPath= self.ConfigSectionMap("settings")['apipath']   
+      
+    
+    def ConfigSectionMap(self, section):
+     import ConfigParser
+     Config = ConfigParser.ConfigParser()
+     Config.read("config.ini")     
+     dict1 = {}
+     options = Config.options(section)
+     for option in options:
+        try:
+                dict1[option] = Config.get(section, option)
+                if dict1[option] == -1:
+                    logging.debug("skip: %s" % option)
+        except:
+                print("exception on %s!" % option)
+                dict1[option] = None
+        return dict1
+
+    
+ 
+    def authenticateUser(self, userName, passWord): 
+
+     import urllib3     
+     http = urllib3.PoolManager()
+           
+     self.userAuthUrl = self.apiPath + "USERRecord/" + str(userName) + "?password=" + str(passWord)
+
+     #Rest call to authenticate User Name and password     
+     response = http.request('GET', self.userAuthUrl)
+     userAuthData = json.loads(response.data)
+
+     success = False
+     errorMessage = ""
+     accessToken = ""
+     if response.status == 200:
+         accessToken = userAuthData['daneRecord']['api_access_token'] 
+         success = True         
+     elif response.status == 404 and userAuthData['result'] == "record not found":        
+        message = "The email or password you entered is incorrect"     
+     else:        
+        message = "Service seems to unavailable now. Please try again later or contact your administrator"
+     return success, accessToken, errorMessage
+
+     
+    def postPMTARecord(self, accessToken, userName, walletaddr): 
+        
+        import urllib3   
+        from urllib3 import PoolManager, Timeout        
+        manager = PoolManager(1)
+        pmtaUtil = PMTAUtil()
+            
+        self.PMTAPostUrl = self.apiPath + "zoneRecord/" + str(pmtaUtil.convertEmailToPMTAFormat(userName)) +"?access_token="+str(accessToken)
+        data_json = pmtaUtil.createPMTARecord(userName, walletaddr)                
+        
+        response = manager.urlopen('POST', self.PMTAPostUrl, headers={'Content-Type':'application/json'}, body=data_json)
+
+        print self.PMTAPostUrl
+
+        print response.data
+      
+        pmtaSuccessStatus = False
+        pmtaErrorMessage = ""
+        print response.status
+        if response.status == 201:
+          pmtaSuccessStatus = True
+        elif response.status == 401:          
+          pmtaErrorMessage = "Unauthorized. Please contact your administrator"    
+        else:
+          pmtaErrorMessage = "Service seems to be unavailable now. Please try again later or contact your administrator"
+        return pmtaSuccessStatus, pmtaErrorMessage
+  
+
+
+
+	  
+	  
 ################################################################################
 class DlgWalletDetails(ArmoryDialog):
    """ For displaying the details of a specific wallet, with options """
@@ -1900,6 +2105,7 @@ class DlgWalletDetails(ArmoryDialog):
       if dev:   actionCopyPubKey  = menu.addAction("Copy Raw Public Key (hex)")
       if True:  actionCopyComment = menu.addAction("Copy Comment")
       if True:  actionCopyBalance = menu.addAction("Copy Balance")
+      if True:  actionPublishAddress = menu.addAction("Publish Address")
       idx = self.wltAddrView.selectedIndexes()[0]
       action = menu.exec_(QCursor.pos())
 
@@ -1944,6 +2150,9 @@ class DlgWalletDetails(ArmoryDialog):
          clippy = getModelStr(ADDRESSCOLS.Comment)
       elif action == actionCopyBalance:
          clippy = getModelStr(ADDRESSCOLS.Balance)
+      elif action == actionPublishAddress:
+         DlgLogin(self, self.main, addr).exec_()
+         return
       else:
          return
 
