@@ -1580,7 +1580,7 @@ class DlgLogin(ArmoryDialog):
       layout.addWidget(buttonBox, 6, 0, 1, 2)
       self.setLayout(layout)
 
-      self.setWindowTitle('Login')
+      self.setWindowTitle('Publish Address')
      
    def execPublishAddress(self):  
       
@@ -2105,7 +2105,7 @@ class DlgWalletDetails(ArmoryDialog):
       if dev:   actionCopyPubKey  = menu.addAction("Copy Raw Public Key (hex)")
       if True:  actionCopyComment = menu.addAction("Copy Comment")
       if True:  actionCopyBalance = menu.addAction("Copy Balance")
-      if True:  actionPublishAddress = menu.addAction("Publish Address")
+      if True:  actionPublishAddress = menu.addAction("Publish")
       idx = self.wltAddrView.selectedIndexes()[0]
       action = menu.exec_(QCursor.pos())
 
