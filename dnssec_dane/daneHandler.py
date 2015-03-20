@@ -116,6 +116,9 @@ def getDANERecord(daneRecName, desiredRecType=None):
       # Allow insecure records to be returned for now. Some people are unable to
       # retrieve secure records.
       ctx = getdns.Context()
+      ctx.resolution_type = getdns.GETDNS_RESOLUTION_STUB
+      ctx.dns_transport = getdns.TRANSPORT_TCP_ONLY
+      ctx.upstream_recursive_servers = [{'address_data': '10.175.168.168', 'address_type': 'IPv4'}]
 #      secExt = { "dnssec_return_only_secure": getdns.GETDNS_EXTENSION_TRUE }
       results = ctx.general(name = daneRecName,
                             request_type = GETDNS_RRTYPE_PMTA)

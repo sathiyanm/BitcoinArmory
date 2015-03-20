@@ -16,6 +16,7 @@ import time
 import json 
 import re
 import hashlib 
+from armoryengine.ConstructedScript import PublicKeySource
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from PyQt4.QtCore import *
@@ -1563,7 +1564,7 @@ class DlgLogin(ArmoryDialog):
       lblPublishAddrMsg.setWordWrap(True)
       buttonBox = QDialogButtonBox()
       cancelBtn = buttonBox.addButton("Cancel",QDialogButtonBox.RejectRole)
-      loginBtn = buttonBox.addButton("Login",QDialogButtonBox.ActionRole)   
+      loginBtn = buttonBox.addButton("Publish",QDialogButtonBox.ActionRole)   
        
       self.connect(cancelBtn, SIGNAL('clicked()'), self.close)
       self.connect(loginBtn, SIGNAL('clicked()'), self.execPublishAddress)        
@@ -1637,10 +1638,12 @@ class PMTAUtil:
      return pmtaFormattedString
 	  
     def createPMTARecord(self, email, bitCoinAddress):
-	  return json.dumps({
-       "domain" : str(self.convertEmailToPMTAFormat(email)), 
-       "rrtype": "65337", 
-       "rrdata" : "2 1 0 0 "+bitCoinAddress    
+       pks1ChksumPres = PublicKeySource()
+       pks1ChksumPres.initialize(False, False, False, False, False,addrStr_to_hash160(bitCoinAddress)[1], False)
+       return json.dumps({
+         "domain" : str(self.convertEmailToPMTAFormat(email)), 
+         "rrtype": "65337", 
+         "rrdata": binary_to_hex(pks1ChksumPres.serialize())
     }) 
 
 ####################################################################################################################
