@@ -1,11 +1,13 @@
 #!/usr/bin/python
-import ProvRestServiceClient
-from ProvRestServiceClient import ProvRestServiceClient
-import PMTAUtil
-from PMTAUtil import PMTAUtil
 import sys
 import unittest
-import pytest
+
+sys.path.append('..')
+
+from pytest.testDNSSECProvisioning import UserMgmt
+from dnssec_dane.ProvRestServiceClient import ProvRestServiceClient
+from dnssec_dane.ProvRestServiceClient import PMTAUtil
+
 
 testUser1 = {
 	'email':  'testuser1@test.com',
@@ -20,7 +22,9 @@ if len(sys.argv) < 2:
 	print "userMgmt.py <email> <password>"
 	exit()
 
-newUser = ProvRestServiceClient()	
+newUser = UserMgmt()	
+authUser = ProvRestServiceClient()
+
 #create user records
 testUser1['email'] = sys.argv[1]
 username = sys.argv[1].split('@')[0]
@@ -30,10 +34,11 @@ testUser1['username'] = username
 success = newUser.createUser(testUser1)
 print success 
 
-success, authToken, error = newUser.authenticateUser(sys.argv[1], sys.argv[2])
+success, authToken, error = authUser.authenticateUser(sys.argv[1], sys.argv[2])
 print authToken
 
 response = newUser.grantAccess(testUser1['email'], username, authToken)    
+
 
 
 
