@@ -1617,7 +1617,7 @@ class DlgLogin(ArmoryDialog):
         
         if not success:
           QMessageBox.warning(self, 'Login Failed', \
-          'The email or password you entered is incorrect', QMessageBox.Ok)
+          message, QMessageBox.Ok)
         else:          
           QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))           
           pmtaSuccessStatus, pmtaErrorMessage = restServiceInit.postPMTARecord(accessToken, userName, self.walletAddress)

@@ -58,47 +58,86 @@ class ProvRestServiceClient(PMTAUtil):
     def authenticateUser(self, userName, passWord): 
 
      import urllib3     
+     from urllib3.exceptions import HTTPError, MaxRetryError, TimeoutError  
      http = urllib3.PoolManager()
-           
+     
      self.userAuthUrl = self.apiPath + "USERRecord/" + str(userName) + "?password=" + str(passWord)
-
-     response = http.request('GET', self.userAuthUrl)
-     userAuthData = json.loads(response.data)
-
+     
+     response = None
      success = False
-     errorMessage = ""
+     message = ""
      accessToken = ""
-     if response.status == 200:
-         accessToken = userAuthData['daneRecord']['api_access_token'] 
-         success = True         
+     restAPIError = False
+
+     try:
+        response = http.request('GET', self.userAuthUrl, retries=1, timeout=2.0)
+        userAuthData = json.loads(response.data)
+        
+     except  TimeoutError:
+        restAPIError = True     
+         
+     except  MaxRetryError:
+        restAPIError = True 
+        
+     except (HTTPError, gaierror):
+        restAPIError = True       
+           
+     if response is None:
+         if restAPIError:
+           message = "Time Out Error" 
+         else:        
+           message = "Service seems to unavailable now. Please try again later or contact your administrator"
+     elif response.status == 200:        
+        accessToken = userAuthData['daneRecord']['api_access_token'] 
+        success = True         
      elif response.status == 404 and userAuthData['result'] == "record not found":        
-        message = "The email or password you entered is incorrect"     
+         message = "The email or password you entered is incorrect"     
      else:        
         message = "Service seems to unavailable now. Please try again later or contact your administrator"
-     return success, accessToken, errorMessage
+     return success, accessToken, message
 
      
     def postPMTARecord(self, accessToken, userName, walletaddr): 
         
         import urllib3   
-        from urllib3 import PoolManager, Timeout        
+        from urllib3 import PoolManager, Timeout    
+        from urllib3.exceptions import HTTPError, MaxRetryError, TimeoutError  
+          
         manager = PoolManager(1)
-        pmtaUtil = PMTAUtil()
-            
+        pmtaUtil = PMTAUtil()                
+                    
         self.PMTAPostUrl = self.apiPath + "zoneRecord/" + str(pmtaUtil.convertEmailToPMTAFormat(userName)) +"?access_token="+str(accessToken)
-        data_json = pmtaUtil.createPMTARecord(userName, walletaddr)                
         
-        response = manager.urlopen('POST', self.PMTAPostUrl, headers={'Content-Type':'application/json'}, body=data_json)
-      
-        pmtaSuccessStatus = False
+        data_json = pmtaUtil.createPMTARecord(userName, walletaddr)
+        
+        pmtaSuccessStatus = False        
+        restAPIError = False
         pmtaErrorMessage = ""
-        print response.status
-        if response.status == 201:
-          pmtaSuccessStatus = True
+        response = None
+       
+        try:         
+          response = manager.urlopen('POST', self.PMTAPostUrl, headers={'Content-Type':'application/json'}, body=data_json, retries=1, timeout=2.0)
+       
+        except  TimeoutError:
+          restAPIError = True     
+         
+        except  MaxRetryError:
+          restAPIError = True 
+        
+        except (HTTPError, gaierror):
+          restAPIError = True       
+       
+        if response is None:
+          if restAPIError:
+            pmtaErrorMessage = "Time out error" 
+          else:        
+            pmtaErrorMessage = "Service seems to unavailable now. Please try again later or contact your administrator"
+        elif response.status == 201:
+           pmtaSuccessStatus = True
         elif response.status == 401:          
-          pmtaErrorMessage = "Unauthorized. Please contact your administrator"    
+           pmtaErrorMessage = "Unauthorized. Please contact your administrator"   
         else:
-          pmtaErrorMessage = "Service seems to be unavailable now. Please try again later or contact your administrator"
+           pmtaErrorMessage = "Service seems to be unavailable now. Please try again later or contact your administrator"  
         return pmtaSuccessStatus, pmtaErrorMessage
   
 
