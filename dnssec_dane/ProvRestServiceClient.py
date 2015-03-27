@@ -84,7 +84,7 @@ class ProvRestServiceClient(PMTAUtil):
            
      if response is None:
          if restAPIError:
-           message = "Time Out Error" 
+           message = "Service seems to be unavailable now. Please try again later or contact your administrator" 
          else:        
            message = "Service seems to unavailable now. Please try again later or contact your administrator"
      elif response.status == 200:        
@@ -129,7 +129,7 @@ class ProvRestServiceClient(PMTAUtil):
        
         if response is None:
           if restAPIError:
-            pmtaErrorMessage = "Time out error" 
+            message = "Service seems to be unavailable now. Please try again later or contact your administrator" 
           else:        
             pmtaErrorMessage = "Service seems to unavailable now. Please try again later or contact your administrator"
         elif response.status == 201:
