@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 import unittest
 import sys
 import re
@@ -12,8 +11,7 @@ from dnssec_dane.ProvRestServiceClient import ProvRestServiceClient
 class UserMgmt():
     
     def __init__(self):
-       self.apiPath = "http://10.175.168.168/api/v1/"
-       print self.apiPath
+       self.apiPath= ProvRestServiceClient().ConfigSectionMap("settings")['apipath']
 
     def createUser(self, newUserRecord):
        import urllib3   
@@ -29,18 +27,13 @@ class UserMgmt():
         'firstName':'Test',
         'lastName':'User',
         'api_access_token':'testToken'
-       }
-       
-       print "apiPath ************ *********** ******** " +  self.apiPath
+       }       
        
        headers = {'Content-Type':'application/json'}   
        self.createUserPath = self.apiPath + "USERRecord?"
        data_json = json.dumps(newUserRecord)
        response = manager.urlopen('POST', self.createUserPath, headers={'Content-Type':'application/json'}, body=data_json)
-       if response.status == 201:
-        return response.status
-       else :
-        return response.status    
+       return response.status
 
     def grantAccess(self, email, userName, accessToken):
 
@@ -49,13 +42,13 @@ class UserMgmt():
      manager = PoolManager(1)
 
      self.userAuthUrl = self.apiPath + "azn/EXPERIMENTAL/65337/" +str(PMTAUtil().convertEmailToPMTAFormat(email)) +"/"+ str(userName) + "?access_token=" + str(accessToken) 
-     print self.userAuthUrl
      userRecord = {
       "domain":"4468473c8ee7c20f1df21d2aa173364c5a96c22efc1381f5a196cc5d._pmta.test.com", 
       "exact":"true",
       "priv_grant_record":"true",
       "priv_grant_user":"true"
      }
+     
      userRecord['domain'] = PMTAUtil().convertEmailToPMTAFormat(email)
      headers = {'Content-Type':'application/json'}         
      data_json = json.dumps(userRecord)
@@ -65,56 +58,30 @@ class UserMgmt():
 #===============================================================================
 # Test Case for Provisioning Rest API 
 #===============================================================================
+################################################################################
 class RestClientTestCases(unittest.TestCase):
     """Tests for Rest API`."""
-
-    global userCreationStatusCode                 
-    global userAuthenticationStatus
-    global wrongUserStatusCode
-    global grantAccessStatus
-    
+        
     if len(sys.argv) < 2:
      print "userMgmt.py <email> <password>"
      exit()
+     
+    def createUser1(self):    
+        testUser1 = {
+         'email':  'testuser1@test.com',
+         'password':'123456',
+         'username':'testuser1',
+         'firstName':'Test',
+         'lastName':'User',
+         'api_access_token':'testToken'
+        }
         
-    testUser1 = {
-     'email':  'testuser1@test.com',
-     'password':'123456',
-     'username':'testuser1',
-     'firstName':'Test',
-     'lastName':'User',
-     'api_access_token':'testToken'
-    }
-    
-    UserMgmt = UserMgmt()
-            
-    authUser = ProvRestServiceClient() 
-    
-    #create user records
-    testUser1['email'] = sys.argv[1]
-    username = sys.argv[1].split('@')[0]    
-    testUser1['password'] = sys.argv[2]  
-    testUser1['username'] = username
-    
-    userCreationStatusCode   = UserMgmt.createUser(testUser1) 
-    
-    print userCreationStatusCode #201
-        
-    userAuthenticationStatus, accessToken, message = authUser.authenticateUser(testUser1['email'], testUser1['password'])
-    
-    print userAuthenticationStatus # True
-    
-    wrongUserStatusCode, accessToken, message = authUser.authenticateUser("johndoe@example.com", "12123123")
-    
-    print wrongUserStatusCode #False
-    
-    grantAccessStatus = UserMgmt.grantAccess(testUser1['email'], username, accessToken)
-    
-    print grantAccessStatus # 201        
-        
-    #===========================================================================
-    # Test Functions
-    #===========================================================================    
+        testUser1['email'] = sys.argv[1]
+        username = sys.argv[1].split('@')[0]    
+        testUser1['password'] = sys.argv[2]  
+        testUser1['username'] = username
+
+        return testUser1
          
     def test_PTMA_record(self):
           
@@ -123,28 +90,40 @@ class RestClientTestCases(unittest.TestCase):
     
        
     def test_Create_New_User(self):  
-        """create a user record """       
+        """create a user record """
+        userMgmt = UserMgmt()       
+        userCreationStatusCode   = userMgmt.createUser(self.createUser1()) 
         self.assertEqual(userCreationStatusCode, 201)        
                    
        
     def test_Authenticate_User(self):
+        
         """testing user authentication"""        
-#        self.assertTrue(restServiceInit.authenticateUser(userName, password), "success")
-        self.assertFalse(userAuthenticationStatus, True)
+        userMgmt = UserMgmt() 
+        authUser = ProvRestServiceClient() 
+        testUser1 = self.createUser1()  
+        validUserAuthenticationStatus, accessToken, message = authUser.authenticateUser(testUser1['email'], testUser1['password'])
+        self.assertTrue(validUserAuthenticationStatus)
            
    
     def test_Authenticate_Not_Valid_User(self):
+        
         """testing user authentication invalid user Name"""
-        self.assertFalse(wrongUserStatusCode, False)
+        authUser = ProvRestServiceClient() 
+        wrongUserStatusCode, accessToken, message = authUser.authenticateUser("johndoe@example.com", "12123123")
+        self.assertFalse(wrongUserStatusCode)
            
        
     def test_Grant_Access_To_User(self):
+        
         """Granting access to the user"""
+        testUser1 = self.createUser1()
+        userMgmt = UserMgmt() 
+        authUser = ProvRestServiceClient() 
+        validUserAuthenticationStatus, accessToken, message = authUser.authenticateUser(testUser1['email'], testUser1['password'])
+        grantAccessStatus = userMgmt.grantAccess(testUser1['email'], testUser1['username'], accessToken)    
         self.assertFalse(grantAccessStatus, 201)
-  
      
-# if __name__ == '__main__':
-#     unittest.main()
     
 suite = unittest.TestLoader().loadTestsFromTestCase(RestClientTestCases)
 unittest.TextTestRunner(verbosity=2).run(suite)
