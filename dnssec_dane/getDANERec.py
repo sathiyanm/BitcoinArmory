@@ -24,6 +24,10 @@ daneReqName = binary_to_hex(sha224Res) + '._pmta.' + recordDomain
 
 # Go out and grab the record that we're querying.
 ctx = getdns.Context()
+ctx.resolution_type = getdns.GETDNS_RESOLUTION_STUB
+ctx.dns_transport = getdns.TRANSPORT_TCP_ONLY
+ctx.upstream_recursive_servers = [{'address_data': '10.175.168.168', 'address_type': 'IPv4'}]
+
 #extensions = { "dnssec_return_only_secure": getdns.GETDNS_EXTENSION_TRUE }
 results = ctx.general(name = daneReqName, request_type = GETDNS_RRTYPE_PMTA)
 status = results['status']
